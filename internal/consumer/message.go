@@ -5,13 +5,20 @@ import (
 	"strings"
 )
 
+type Attachment struct {
+	Filename    string `json:"filename"`
+	ContentType string `json:"contentType"`
+	Data        string `json:"data"` // base64-encoded file content
+}
+
 type EmailMessage struct {
-	To      []string `json:"to"`
-	CC      []string `json:"cc,omitempty"`
-	BCC     []string `json:"bcc,omitempty"`
-	Subject string   `json:"subject"`
-	Body    string   `json:"body"`
-	IsHTML  bool     `json:"isHtml"`
+	To          []string     `json:"to"`
+	CC          []string     `json:"cc,omitempty"`
+	BCC         []string     `json:"bcc,omitempty"`
+	Subject     string       `json:"subject"`
+	Body        string       `json:"body"`
+	IsHTML      bool         `json:"isHtml"`
+	Attachments []Attachment `json:"attachments,omitempty"`
 }
 
 func (m *EmailMessage) Validate(workerID int, rawMessage string) bool {

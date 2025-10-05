@@ -1,6 +1,8 @@
 package consumer
 
 import (
+	"encoding/base64"
+	"io"
 	"mailsink/internal/config"
 	"mailsink/internal/logger"
 
@@ -34,12 +36,29 @@ func SendEmail(emailMessage *EmailMessage, cfg *config.Config) error {
 		m.SetBody("text/plain", emailMessage.Body)
 	}
 
+	// Add attachments
+	for _, att := range emailMessage.Attachments {
+		data, err := base64.StdEncoding.DecodeString(att.Data)
+		if err != nil {
+			logger.Log.WithFields(map[string]interface{}{
+				"filename": att.Filename,
+			}).WithError(err).Warn("Failed to decode attachment, skipping")
+			continue
+		}
+
+		m.Attach(att.Filename, gomail.SetCopyFunc(func(w io.Writer) error {
+			_, err := w.Write(data)
+			return err
+		}))
+	}
+
 	logger.Log.WithFields(map[string]interface{}{
-		"to":      emailMessage.To,
-		"cc":      emailMessage.CC,
-		"bcc":     emailMessage.BCC,
-		"subject": emailMessage.Subject,
-		"isHtml":  emailMessage.IsHTML,
+		"to":          emailMessage.To,
+		"cc":          emailMessage.CC,
+		"bcc":         emailMessage.BCC,
+		"subject":     emailMessage.Subject,
+		"isHtml":      emailMessage.IsHTML,
+		"attachments": len(emailMessage.Attachments),
 	}).Info("Sending email...")
 
 	d := gomail.NewDialer(cfg.SMTPServer, cfg.SMTPPortInt(), cfg.SMTPUser, cfg.SMTPPass)
