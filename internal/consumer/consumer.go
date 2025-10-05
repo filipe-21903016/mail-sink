@@ -61,6 +61,13 @@ func StartWorker(workerID int, connStr string, queueName string, cfg *config.Con
 			"error":  err,
 		}).Fatal("Failed to open channel")
 	}
+	_, err = ch.QueueDeclare(queueName, true, false, false, false, nil)
+	if err != nil {
+		logger.Log.WithFields(map[string]interface{}{
+			"worker": workerID,
+			"error":  err,
+		}).Fatal("Failed to declare queue")
+	}
 	defer ch.Close()
 
 	msgs, err := ch.Consume(queueName, "", false, false, false, false, nil)

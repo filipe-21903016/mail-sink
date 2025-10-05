@@ -40,6 +40,8 @@ ENV SMTP_SERVER=""
 ENV SMTP_PORT=""
 ENV SMTP_USE_SSL="false"
 ENV RABBITMQ_URL=""
+ENV RABBITMQ_USER=""
+ENV RABBITMQ_PASS=""
 
 # Run the worker
 CMD ["./mailsink"]
