@@ -13,8 +13,8 @@ var (
 )
 
 func ProcessMessage(workerID int, rawMessage string, cfg *config.Config) error {
-	var emailMsg EmailMessage
-	if err := json.Unmarshal([]byte(rawMessage), &emailMsg); err != nil {
+	var mailSinkMessage MailSinkMessage
+	if err := json.Unmarshal([]byte(rawMessage), &mailSinkMessage); err != nil {
 		logger.Log.WithFields(map[string]interface{}{
 			"worker": workerID,
 			"error":  err,
@@ -23,6 +23,7 @@ func ProcessMessage(workerID int, rawMessage string, cfg *config.Config) error {
 		return ErrInvalidSchema
 	}
 
+	emailMsg := mailSinkMessage.Payload
 	if !emailMsg.Validate(workerID, rawMessage) {
 		return ErrInvalidSchema
 	}

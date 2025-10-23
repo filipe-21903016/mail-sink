@@ -21,6 +21,11 @@ type EmailMessage struct {
 	Attachments []Attachment `json:"attachments,omitempty"`
 }
 
+type MailSinkMessage struct {
+	IdempotencyKey string       `json:"idempotencyKey"`
+	Payload        EmailMessage `json:"payload"`
+}
+
 func (m *EmailMessage) Validate(workerID int, rawMessage string) bool {
 	valid := true
 

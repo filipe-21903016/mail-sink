@@ -9,6 +9,8 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+
+	"github.com/joho/godotenv"
 )
 
 func buildAMQPConn(cfg config.Config) string {
@@ -20,6 +22,12 @@ func buildAMQPConn(cfg config.Config) string {
 }
 
 func main() {
+	// Load env file
+	err := godotenv.Load()
+	if err != nil {
+		log.Fatal("Error loading .env file")
+	}
+
 	logger.InitLogger()
 	cfg := config.LoadConfig()
 	connStr := buildAMQPConn(cfg)
