@@ -45,7 +45,7 @@ func main() {
 
 	// Start workers
 	for i := 0; i < cfg.WorkerCount; i++ {
-		go consumer.StartWorker(i, connStr, cfg.RabbitmqQueue, &cfg)
+		go consumer.StartWorker(i, connStr, &cfg)
 	}
 
 	// Gracefully handle shutdown
