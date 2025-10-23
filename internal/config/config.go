@@ -63,7 +63,10 @@ func getEnvBool(envKey string, defaultValue bool) bool {
 		case "false", "0", "no", "n":
 			return false
 		default:
-			// Invalid value; return default
+			logger.Log.WithFields(map[string]interface{}{
+				"invalid_value": strVal,
+				"default":       defaultValue,
+			}).Warnf("Invalid %s, using default", envKey)
 			return defaultValue
 		}
 	}
