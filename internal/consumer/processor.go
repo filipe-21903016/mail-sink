@@ -26,14 +26,6 @@ func ProcessMessage(workerID int, rawMessage string, cfg *config.Config) error {
 		return ErrInvalidSchema
 	}
 
-	if mailSinkMessage.Payload.Subject == "retry" {
-		logger.Log.WithFields(map[string]interface{}{
-			"worker": workerID,
-			"raw":    rawMessage,
-		}).Warn("FORCED RETRY")
-		return ErrKeyValueStore
-	}
-
 	// Set key to processing
 	set, err := db.Rdb.SetNX(db.Ctx, mailSinkMessage.IdempotencyKey, "processing", 5*time.Minute).Result()
 	if err != nil {
