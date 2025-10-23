@@ -5,6 +5,7 @@ import (
 	"mailsink/internal/logger"
 	"os"
 	"strconv"
+	"strings"
 )
 
 type Config struct {
@@ -26,6 +27,7 @@ type Config struct {
 	RedisHost       string
 	RedisPort       string
 	RedisPass       string
+	RedisDb         int
 }
 
 func (c *Config) SMTPPortInt() int {
@@ -38,47 +40,56 @@ func (c *Config) TLSServerConfig() *tls.Config {
 	return &tls.Config{InsecureSkipVerify: true}
 }
 
-func LoadConfig() Config {
-	workerCount := 4 // default worker count
-	if wcStr, ok := os.LookupEnv("WORKER_COUNT"); ok {
-		if wc, err := strconv.Atoi(wcStr); err == nil {
-			workerCount = wc
+func getEnvInt(envKey string, defaultValue int) int {
+	if strVal, ok := os.LookupEnv(envKey); ok {
+		if val, err := strconv.Atoi(strVal); err == nil {
+			return val
 		} else {
 			logger.Log.WithFields(map[string]interface{}{
-				"invalid_value": wcStr,
-				"default":       workerCount,
-			}).Warn("Invalid WORKER_COUNT, using default")
+				"invalid_value": strVal,
+				"default":       defaultValue,
+			}).Warnf("Invalid %s, using default", envKey)
 		}
 	}
+	return defaultValue
+}
 
-	rabbitUseSSL := false // default to false
-	if useSSLStr := os.Getenv("RABBITMQ_USE_SSL"); useSSLStr == "true" {
-		rabbitUseSSL = true
+func getEnvBool(envKey string, defaultValue bool) bool {
+	if strVal, ok := os.LookupEnv(envKey); ok {
+		lower := strings.ToLower(strVal)
+		switch lower {
+		case "true", "1", "yes", "y":
+			return true
+		case "false", "0", "no", "n":
+			return false
+		default:
+			// Invalid value; return default
+			return defaultValue
+		}
 	}
+	return defaultValue
+}
 
-	smtpUseSSL := false
-	if useSSLStr := os.Getenv("SMTP_USE_SSL"); useSSLStr == "true" {
-		smtpUseSSL = true
-	}
-
+func LoadConfig() Config {
 	return Config{
 		RabbitmqHost:    os.Getenv("RABBITMQ_HOST"),
 		RabbitmqPort:    os.Getenv("RABBITMQ_PORT"),
 		RabbitmqUser:    os.Getenv("RABBITMQ_USER"),
 		RabbitmqPass:    os.Getenv("RABBITMQ_PASS"),
 		RabbitmqQueue:   os.Getenv("RABBITMQ_QUEUE"),
-		RabbitmqUseSSL:  rabbitUseSSL,
+		RabbitmqUseSSL:  getEnvBool("RABBITMQ_USE_SSL", false),
 		RabbitmqSSLCert: os.Getenv("RABBITMQ_SSL_CERT"),
 		RabbitmqSSLKey:  os.Getenv("RABBITMQ_SSL_KEY"),
 		RabbitmqSSLCA:   os.Getenv("RABBITMQ_SSL_CA"),
-		WorkerCount:     workerCount,
+		WorkerCount:     getEnvInt("WORKER_COUNT", 4),
 		SMTPServer:      os.Getenv("SMTP_SERVER"),
 		SMTPPort:        os.Getenv("SMTP_PORT"),
 		SMTPUser:        os.Getenv("SMTP_USER"),
 		SMTPPass:        os.Getenv("SMTP_PASS"),
-		SMTPUseSSL:      smtpUseSSL,
+		SMTPUseSSL:      getEnvBool("SMTP_USE_SSL", false),
 		RedisHost:       os.Getenv("REDIS_HOST"),
 		RedisPort:       os.Getenv("REDIS_PORT"),
 		RedisPass:       os.Getenv("REDIS_PASS"),
+		RedisDb:         getEnvInt("REDIS_DB", 0),
 	}
 }
