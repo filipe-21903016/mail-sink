@@ -12,6 +12,8 @@ import (
 	"github.com/streadway/amqp"
 )
 
+const MAX_RETRIES = 5
+
 func connectWithRetry(connStrg string, useSSL bool, maxRetries int) (*amqp.Connection, error) {
 	var conn *amqp.Connection
 	var err error
@@ -84,7 +86,7 @@ func StartWorker(workerID int, connStr string, queueName string, cfg *config.Con
 	logger.Log.WithField("worker", workerID).Info("Worker started, waiting for messages")
 
 	for msg := range msgs {
-		handleMessage(workerID, msg, cfg, &processed, &failed)
+		handleMessage(workerID, msg, ch, cfg, &processed, &failed)
 
 		total := atomic.LoadUint64(&processed) + atomic.LoadUint64(&failed)
 		if total%10 == 0 {
@@ -107,29 +109,95 @@ func ackMessage(workerID int, msg amqp.Delivery, raw string) {
 	}
 }
 
-func handleMessage(workerID int, msg amqp.Delivery, cfg *config.Config, processed, failed *uint64) {
+func nackMessage(workerID int, msg amqp.Delivery, raw string, ch *amqp.Channel, queueName string, retryCount int) {
+	// Update headers
+	headers := msg.Headers
+	if headers == nil {
+		headers = amqp.Table{}
+	}
+	headers["x-retry-count"] = int32(retryCount)
+
+	// Re-publish message with updated headers
+	err := ch.Publish(
+		"", // default exchange
+		queueName,
+		false, // mandatory
+		false, // immediate
+		amqp.Publishing{
+			Headers:     headers,
+			ContentType: msg.ContentType,
+			Body:        msg.Body,
+		},
+	)
+	if err != nil {
+		logger.Log.WithFields(map[string]interface{}{
+			"worker": workerID,
+			"error":  err,
+		}).Error("Failed to republish message for retry")
+	}
+
+	// Acknowledge the old message
+	msg.Ack(false)
+}
+
+func handleMessage(workerID int, msg amqp.Delivery, ch *amqp.Channel, cfg *config.Config, processed *uint64, failed *uint64) {
 	raw := string(msg.Body)
 
 	err := ProcessMessage(workerID, raw, cfg)
+
+	retryCount := 0
+	if val, ok := msg.Headers["x-retry-count"]; ok {
+		if rc, ok := val.(int32); ok {
+			retryCount = int(rc)
+		}
+	}
 
 	switch {
 	case err == nil:
 		ackMessage(workerID, msg, raw)
 		atomic.AddUint64(processed, 1)
+
 	case errors.Is(err, ErrInvalidSchema):
+		// Permanent Failure - remove from queue
 		ackMessage(workerID, msg, raw)
 		atomic.AddUint64(failed, 1)
 		logger.Log.WithFields(map[string]interface{}{
 			"worker":  workerID,
 			"message": raw,
 		}).Error("Invalid message removed from queue (permanent failure)")
+
+	case errors.Is(err, ErrTransientFailed), errors.Is(err, ErrKeyValueStore):
+		// Transient Failure -> requeue message
+		if retryCount+1 > MAX_RETRIES {
+			// Move to dead letter queue
+			msg.Ack(false)
+			logger.Log.Warn("Max retries reached, message dropped")
+		} else {
+			// Requeue with incremented retry count
+			nackMessage(workerID, msg, raw, ch, cfg.RabbitmqQueue, retryCount+1)
+			atomic.AddUint64(failed, 1)
+			logger.Log.WithFields(map[string]interface{}{
+				"worker":     workerID,
+				"message":    raw,
+				"error":      err,
+				"retryCount": retryCount,
+			}).Warn("Transient failure, message requeued")
+		}
+
 	default:
-		ackMessage(workerID, msg, raw)
-		atomic.AddUint64(failed, 1)
-		logger.Log.WithFields(map[string]interface{}{
-			"worker":  workerID,
-			"message": raw,
-			"error":   err,
-		}).Error("Message failed and removed from queue")
+		if retryCount+1 > MAX_RETRIES {
+			// Move to dead letter queue
+			msg.Ack(false)
+			logger.Log.Warn("Max retries reached, message dropped")
+		} else {
+			// TODO: requeue for now then move to dead letter queue
+			nackMessage(workerID, msg, raw, ch, cfg.RabbitmqQueue, retryCount+1)
+			atomic.AddUint64(failed, 1)
+			logger.Log.WithFields(map[string]interface{}{
+				"worker":  workerID,
+				"message": raw,
+				"error":   err,
+			}).Error("Unknown failure, message requeued")
+		}
 	}
 }

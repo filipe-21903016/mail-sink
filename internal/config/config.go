@@ -23,6 +23,9 @@ type Config struct {
 	SMTPUser        string
 	SMTPPass        string
 	SMTPUseSSL      bool
+	RedisHost       string
+	RedisPort       string
+	RedisPass       string
 }
 
 func (c *Config) SMTPPortInt() int {
@@ -74,5 +77,8 @@ func LoadConfig() Config {
 		SMTPUser:        os.Getenv("SMTP_USER"),
 		SMTPPass:        os.Getenv("SMTP_PASS"),
 		SMTPUseSSL:      smtpUseSSL,
+		RedisHost:       os.Getenv("REDIS_HOST"),
+		RedisPort:       os.Getenv("REDIS_PORT"),
+		RedisPass:       os.Getenv("REDIS_PASS"),
 	}
 }

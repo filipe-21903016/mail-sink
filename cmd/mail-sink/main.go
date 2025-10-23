@@ -5,6 +5,7 @@ import (
 	"log"
 	"mailsink/internal/config"
 	"mailsink/internal/consumer"
+	"mailsink/internal/db"
 	"mailsink/internal/logger"
 	"os"
 	"os/signal"
@@ -39,6 +40,9 @@ func main() {
 		"ssl":     cfg.RabbitmqUseSSL,
 	}).Info("Starting MailSink")
 
+	// Connect to key-value store
+	db.Init(cfg)
+
 	// Start workers
 	for i := 0; i < cfg.WorkerCount; i++ {
 		go consumer.StartWorker(i, connStr, cfg.RabbitmqQueue, &cfg)
@@ -49,4 +53,5 @@ func main() {
 	signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
 	<-sig
 	log.Println("Shutting down MailSink...")
+
 }
